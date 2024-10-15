@@ -1,0 +1,31 @@
+
+{
+  "name": "jp-codeplus/hazel-router",
+  "description": "A simple PHP router with middleware support and sitemap generation",
+  "type": "library",
+  "autoload": {
+    "psr-4": {
+      "HazelRouter\\": "src/"
+    }
+  },
+  "authors": [
+    {
+      "name": "Jan Behrens",
+      "email": "jp.behrens@eoutlook.com"
+    }
+  ],
+  "require": {
+    "php": ">=7.4"
+  },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/jp-codeplus/hazel-router"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/jp-codeplus/hazel-router/issues",
+    "source": "https://github.com/jp-codeplus/hazel-router"
+  },
+  "license": "MIT"
+}

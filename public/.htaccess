@@ -1,0 +1,10 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Prüfen, ob die angeforderte Datei oder das Verzeichnis existiert
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Wenn die Datei oder das Verzeichnis nicht existiert, leite an index.php weiter
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
