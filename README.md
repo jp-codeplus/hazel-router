@@ -70,5 +70,3 @@ echo $router->displayErrors();
 ## Lizenz
 
 Dieses Projekt ist unter der MIT-Lizenz lizenziert. Siehe die `LICENSE`-Datei für weitere Informationen.
-# hazel-router
-# hazel-router
