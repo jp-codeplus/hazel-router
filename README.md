@@ -1,72 +1,137 @@
 
-# HazelRouter
+# HazelRouter - Anleitung zur Verwendung
 
-**Version 0.1.0**  
-Ein leichter und flexibler Router für PHP-Anwendungen, der Middleware-Unterstützung und Sitemap-Generierung bietet. Entwickelt und programmiert von **Jan Behrens**.
-
-## Übersicht
-
-Der **HazelRouter** ermöglicht es, HTTP-Routen in einer PHP-Anwendung einfach zu registrieren, Middleware hinzuzufügen und dynamische URIs zu verwenden. Darüber hinaus kann eine XML-Sitemap basierend auf den registrierten GET-Routen generiert werden.
-
-## Features
-
-- **Routenregistrierung**: Unterstützt GET, POST und andere HTTP-Methoden mit dynamischen Platzhaltern (z.B. `/users/{id}`).
-- **Middleware**: Füge Middleware für bestimmte Routen hinzu, um Funktionen wie Authentifizierung oder andere Vorverarbeitungen zu ermöglichen.
-- **Sitemap-Generierung**: Generiert eine XML-Sitemap basierend auf den registrierten Routen.
-- **Fehlerbehandlung**: Zeichnet Fehler in Routen- und Middleware-Prozessen auf und ermöglicht eine einfache Ausgabe.
-- **Aufrufbare Aktionen**: Unterstützt sowohl Callables als auch Methoden innerhalb von Klassen (mit automatischer Klasseninstanziierung).
+Der **HazelRouter** ist ein einfacher, anpassbarer PHP-Router mit Unterstützung für Middleware, dynamische Routenerstellung und automatischer XML-Sitemap-Generierung.
 
 ## Installation
 
-1. **Download oder Clone** dieses Repositories:
+Du kannst den HazelRouter ganz einfach über Composer installieren:
 
 ```bash
-git clone https://github.com/dein-repo/hazel-router.git
+composer require jp-codeplus/hazel-router
 ```
 
-2. **Einbinden in dein Projekt**: Lade die `HazelRouter`-Klasse in dein Projektverzeichnis und inkludierte sie in deiner `index.php`:
+## Voraussetzungen
+
+Stelle sicher, dass du folgende Dateien in deinem Projekt hast:
+- `HazelRouter.php` (die Router-Klasse)
+- `DemoController.php` (zum Testen der Controller)
+- `DemoMiddleware.php` (zum Testen der Middleware)
+- `routes.php` (eine Datei mit den definierten Routen)
+
+## Schritt-für-Schritt-Anleitung
+
+### 1. Router initialisieren
+
+Zuerst müssen wir den Router initialisieren und die notwendigen Dateien einbinden:
 
 ```php
-require_once 'path/to/HazelRouter.php';
+require __DIR__ . '/../src/HazelRouter.php';
+require __DIR__ . '/DemoController.php';
+require __DIR__ . '/DemoMiddleware.php';
+
+// Basic Router-Initialisierung
+$router = new JayPiii\HazelRouter();
+$routerPath = __DIR__ . '/routes.php'; // ==> DEMO ROUTES
 ```
 
-3. **Route hinzufügen**:
+### 2. XML-Sitemap automatisch erstellen
+
+Du kannst eine Sitemap einfach durch Aufruf der `createSitemap`-Methode erstellen. Gib die gewünschte URI und die Domain an:
 
 ```php
-$router = new HazelRouter();
+$router->createSitemap('/sitemap.xml', 'http://hazel-router.test');
+```
 
-$router->route('/users/{id}', [UserController::class, 'show'], 'GET');
+Dies erstellt eine Route, unter der die XML-Sitemap abgerufen werden kann.
+
+### 3. Routen laden
+
+Lade die Routen aus einer externen PHP-Datei. Die Datei sollte ein Array mit Routen zurückgeben:
+
+```php
+$router->loadRoutes($routerPath);
+```
+
+### 4. Middleware hinzufügen
+
+Um Middleware hinzuzufügen, kannst du die `middleware`-Methode verwenden. Diese Methode unterstützt sowohl Closures als auch Klassenmethoden:
+
+```php
+$router->middleware('myMiddleware', [DemoMiddleware::class, 'index']);
+```
+
+### 5. Router ausführen
+
+Rufe die Methode `run()` auf, um den Router auszuführen. Diese Methode überprüft die aktuelle Anfrage und führt die entsprechende Route aus:
+
+```php
 $router->run();
 ```
 
-4. **Middleware hinzufügen**:
+### 6. Fehler anzeigen
+
+Falls während der Verarbeitung Fehler auftreten, kannst du diese mit `displayErrors()` ausgeben:
 
 ```php
-$router->middleware('auth', function() {
-    if (!isset($_SESSION['user'])) {
-        http_response_code(403);
-        echo 'Forbidden';
-        exit;
-    }
-});
+if ($router->displayErrors() !== null) {
+    echo $router->displayErrors();
+}
 ```
 
-5. **Sitemap generieren**:
+## Beispiel-Code
+
+Hier ist der vollständige Beispiel-Code für die Verwendung des HazelRouters:
 
 ```php
-echo $router->sitemap();
+require __DIR__ . '/../src/HazelRouter.php';
+require __DIR__ . '/DemoController.php';
+require __DIR__ . '/DemoMiddleware.php';
+
+// Basic Router
+$router = new JayPiii\HazelRouter();
+$routerPath = __DIR__ . '/routes.php'; // ==> DEMO ROUTES
+$router->createSitemap('/sitemap.xml', 'http://hazel-router.test');
+$router->loadRoutes($routerPath);
+$router->middleware('myMiddleware', [DemoMiddleware::class, 'index']);
+$router->run();
+
+if ($router->displayErrors() !== null) {
+    echo $router->displayErrors();
+}
 ```
 
-6. **Fehler anzeigen** (optional):
+## Beispielhafte `routes.php`
+
+Die Datei `routes.php` sollte ein Array mit Routen zurückgeben, die wie folgt definiert sind:
 
 ```php
-echo $router->displayErrors();
+return [
+    [
+        'uri' => '/',
+        'action' => [DemoController::class, 'index'],
+        'method' => 'GET',
+        'middleware' => ['myMiddleware'],
+        'sitemap' => true,
+        'visibility' => 'live'
+    ],
+    [
+        'uri' => '/hello',
+        'action' => [DemoController::class, 'hello'],
+        'method' => 'GET',
+        'middleware' => [],
+        'sitemap' => false,
+        'visibility' => 'staging'
+    ],
+    [
+        'uri' => '/mellow',
+        'action' => [DemoController::class, 'mellow'],
+        'method' => 'GET',
+        'middleware' => [],
+        'sitemap' => true,
+        'visibility' => 'live'
+    ],
+];
 ```
 
-## Anforderungen
-
-- PHP 7.4 oder höher
-
-## Lizenz
-
-Dieses Projekt ist unter der MIT-Lizenz lizenziert. Siehe die `LICENSE`-Datei für weitere Informationen.
+### Viel Spaß beim Programmieren mit dem **HazelRouter**!
