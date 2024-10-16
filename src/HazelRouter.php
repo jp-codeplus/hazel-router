@@ -9,16 +9,18 @@
  * @author Jan Behrens
  */
 
- namespace JayPiii;
+namespace JayPiii;
 
 class HazelRouter
 {
     protected array $routes = [];                    // Routenarray zur Speicherung aller registrierten Routen
     protected array $middleware = [];                // Middleware-Array zur Speicherung von Middleware-Handlern
     protected array $middlewareErrors = [];          // Array zur Speicherung von Middleware-Fehlern
-    protected string $sitemapDomain = 'http://mydomain.com'; // Domain für Sitemap
-    protected string $sitemapRoute = '/sitemap.xml'; // Pfad zur Sitemap
+    protected string $sitemapDomain;                 // Domain für Sitemap
+    protected string $sitemapRoute;                  // Pfad zur Sitemap
     protected array $errors = [];                    // Fehlerarray zur Speicherung von allgemeinen Fehlern
+    protected array $currentRoute = [];              // Aktuelle Route
+
 
     /**
      * Fügt eine Route hinzu, standardmäßig mit der GET-Methode.
@@ -29,7 +31,8 @@ class HazelRouter
      * @param array $middleware Eine Liste von Middleware.
      * @return self Gibt die aktuelle Instanz für Fluent Interface zurück.
      */
-    public function route(string $uri, callable|array $action, string $method = 'GET', array $middleware = []): self
+
+    public function route(string $uri, callable|array $action, string $method = 'GET', array $middleware = [], array $attributes = []): self
     {
         // Überprüfen, ob die Aktion als [Class::class, 'method'] angegeben ist
         if (is_array($action) && is_string($action[0])) {
@@ -48,16 +51,17 @@ class HazelRouter
         // URI in ein reguläres Ausdrucksmuster umwandeln
         $uriPattern = $this->convertUriToPattern($uri);
 
-        // Route registrieren
-        $this->routes[strtoupper($method)][$uriPattern] = [
+        // Route registrieren und Attribute wie 'visibility' hinzufügen
+        $this->routes[strtoupper($method)][$uriPattern] = array_merge([
             'action' => $action,
             'middleware' => $middleware,
             'sitemap' => false,
             'uri' => $uri
-        ];
+        ], $attributes);
 
         return $this;
     }
+
 
     /**
      * Auflösen von [Class::class, 'method'] zu einer Instanz oder statischen Methode.
@@ -76,7 +80,7 @@ class HazelRouter
         }
 
         // Überprüfen, ob die Methode statisch ist
-        $reflectionMethod = new ReflectionMethod($class, $method);
+        $reflectionMethod = new \ReflectionMethod($class, $method);
         if (!$reflectionMethod->isStatic()) {
             $action[0] = new $class(); // Instanziiere die Klasse, wenn die Methode nicht statisch ist
         }
@@ -99,14 +103,49 @@ class HazelRouter
      * Fügt Middleware hinzu.
      * 
      * @param string $name Der Name der Middleware.
-     * @param callable $handler Der Middleware-Handler.
+     * @param callable|array $handler Der Middleware-Handler.
      * @return self Gibt die aktuelle Instanz für Fluent Interface zurück.
      */
-    public function middleware(string $name, callable $handler): self
+    public function middleware(string $name, callable|array $handler): self
     {
+        // Überprüfen, ob die Middleware als [Class::class, 'method'] angegeben ist
+        if (is_array($handler) && is_string($handler[0])) {
+            $handler = $this->resolveMiddlewareClassMethod($handler);
+            if ($handler === null) {
+                $this->middlewareErrors[] = "Middleware handler '$name' could not be resolved.";
+                return $this; // Abbrechen, wenn die Methode nicht existiert
+            }
+        }
+
         $this->middleware[$name] = $handler;
         return $this;
     }
+
+    /**
+     * Auflösen von [Class::class, 'method'] zu einer Instanz oder statischen Methode.
+     * 
+     * @param array $middleware Das Middleware-Array.
+     * @return callable|null Gibt das aufrufbare Middleware zurück oder null, wenn es nicht aufrufbar ist.
+     */
+    protected function resolveMiddlewareClassMethod(array $middleware): ?callable
+    {
+        [$class, $method] = $middleware;
+
+        // Überprüfen, ob die Methode in der Klasse existiert
+        if (!method_exists($class, $method)) {
+            $this->errors[] = "Method $method does not exist in class $class.";
+            return null;
+        }
+
+        // Überprüfen, ob die Methode statisch ist
+        $reflectionMethod = new \ReflectionMethod($class, $method);
+        if (!$reflectionMethod->isStatic()) {
+            $middleware[0] = new $class(); // Instanziiere die Klasse, wenn die Methode nicht statisch ist
+        }
+
+        return $middleware;
+    }
+
 
     /**
      * Lädt Routen aus einer PHP-Datei und fügt sie zum Router hinzu.
@@ -122,18 +161,20 @@ class HazelRouter
         foreach ($routes as $route) {
             $route = $this->validateAndNormalizeRoute($route); // Route validieren
 
-            // Route hinzufügen
+            // Route hinzufügen, und die zusätzlichen Attribute wie 'visibility' übergeben
             $this->route(
                 uri: $route['uri'],
                 action: $route['action'],
                 method: $route['method'],
-                middleware: $route['middleware']
+                middleware: $route['middleware'],
+                attributes: [
+                    'sitemap' => $route['sitemap'],
+                    'visibility' => $route['visibility'] // Hier wird 'visibility' hinzugefügt
+                ]
             );
-
-            // Sitemap-Einstellung setzen
-            $this->setSitemap($route['uri'], $route['sitemap']);
         }
     }
+
 
     /**
      * Validiert und normalisiert eine Route.
@@ -231,7 +272,9 @@ class HazelRouter
             if (preg_match($pattern, $requestedUri, $matches)) {
                 array_shift($matches); // Entferne den vollständigen URI-Treffer
 
-                // Middleware ausführen
+                $this->currentRoute = $routeData; // Speichere die aktuelle Route
+
+                // Middleware ausführen und Route-Daten übergeben
                 $this->handleMiddleware(array_merge($routeData['middleware'], $this->getMiddlewareForRoute($routePattern)));
 
                 // Überprüfen, ob die Aktion aufrufbar ist
@@ -248,6 +291,7 @@ class HazelRouter
 
         return false;
     }
+
 
     /**
      * Sendet eine 404-Fehlerantwort, wenn keine Route gefunden wurde.
@@ -270,7 +314,8 @@ class HazelRouter
     {
         foreach ($middlewares as $middleware) {
             if (array_key_exists($middleware, $this->middleware)) {
-                call_user_func($this->middleware[$middleware]); // Middleware ausführen
+                // Middleware mit aktuellem Routendaten ausführen
+                call_user_func($this->middleware[$middleware], $this->currentRoute);
             } else {
                 $this->middlewareErrors[] = "Middleware '$middleware' not found.";
             }
@@ -288,30 +333,57 @@ class HazelRouter
         return [];
     }
 
+
+    /**
+     * Erstellt die Sitemap und fügt automatisch eine Route hinzu, die die Sitemap bereitstellt.
+     * 
+     * @param string $sitemapUri Die URI, unter der die Sitemap angezeigt werden soll.
+     * @param string $domain Die Domain, unter der die Sitemap erstellt wird.
+     * @return void
+     */
+    public function createSitemap(string $sitemapUri, string $domain): void
+    {
+        $this->sitemapRoute = $sitemapUri;     // Setzt die Sitemap-URI
+        $this->sitemapDomain = rtrim($domain, '/'); // Setzt die Domain (ohne abschließenden Slash)
+
+        // Füge eine Route hinzu, um die Sitemap anzuzeigen
+        $this->route($sitemapUri, function () {
+            header('Content-Type: application/xml; charset=utf-8');
+            echo $this->generateSitemapXml();
+            exit(); // Skript nach der Sitemap-Ausgabe beenden
+        }, 'GET');
+    }
+
     /**
      * Gibt die Sitemap im XML-Format zurück.
      * 
      * @return string Die generierte Sitemap im XML-Format.
      */
-    public function sitemap(): string
+    public function generateSitemapXml(): string
     {
-        $xml = "<?xml version='1.0' encoding='UTF-8'?>";
-        $xml .= "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap-image/1.1'>";
-
+        $xml = "<?xml version='1.0' encoding='UTF-8'?>\n";
+        $xml .= "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>\n";
+    
         foreach ($this->routes as $method => $routes) {
             if (strtoupper($method) === 'GET') {
                 foreach ($routes as $uri => $routeData) {
                     if ($routeData['sitemap']) {
-                        $url = htmlspecialchars($this->sitemapDomain . $uri);
-                        $xml .= "<url><loc>$url</loc></url>";
+                        // Sicherstellen, dass kein doppeltes Präfix entsteht
+                        $url = $this->sitemapDomain . (strpos($routeData['uri'], '/') === 0 ? '' : '/') . $routeData['uri'];
+    
+                        $xml .= "    <url>\n";
+                        $xml .= "        <loc>" . htmlspecialchars($url) . "</loc>\n";
+                        $xml .= "    </url>\n";
                     }
                 }
             }
         }
-
+    
         $xml .= "</urlset>";
         return $xml;
     }
+    
+
 
     /**
      * Gibt die gesammelten Fehler aus.

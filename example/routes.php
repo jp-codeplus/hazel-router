@@ -4,9 +4,9 @@ return [
         'uri' => '/',
         'action' => [DemoController::class, 'index'],
         'method' => 'GET',
-        'middleware' => [],
+        'middleware' => ['myMiddleware'],
         'sitemap' => true,
-        'visibility' => 'live' // Sichtbarkeit auf "live"
+        'visibility' => 'live'
     ],
     [
         'uri' => '/hello',
@@ -14,7 +14,7 @@ return [
         'method' => 'GET',
         'middleware' => [],
         'sitemap' => false,
-        'visibility' => 'staging' // Sichtbarkeit auf "staging"
+        'visibility' => 'staging' 
     ],
     [
         'uri' => '/mellow',
@@ -22,6 +22,6 @@ return [
         'method' => 'GET',
         'middleware' => [],
         'sitemap' => true,
-        'visibility' => 'live' // Sichtbarkeit auf "live"
+        'visibility' => 'live'
     ],
 ];
