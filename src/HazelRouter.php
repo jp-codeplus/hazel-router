@@ -9,6 +9,7 @@
  * @author Jan Behrens
  */
 
+ namespace JayPiii;
 
 class HazelRouter
 {
